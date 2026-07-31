@@ -5,14 +5,9 @@
 #import "OWSContainerManager.h"
 #import "OWSLocationSpoofer.h"
 
-// ── HELPERS ────────────────────────────────────────────────────────
+// ── SWIZZLE HELPER ─────────────────────────────────────────────────
 
-static void swizzle(Class cls, SEL sel, IMP newImp, IMP *oldImp) {
-    Method m = class_getInstanceMethod(cls, sel);
-    if (m) { if (oldImp) *oldImp = method_getImplementation(m); method_setImplementation(m, imp_implementationWithBlock(^(id _s){})); method_setImplementation(m, newImp); }
-}
-
-// ── NSUserDefaults ─────────────────────────────────────────────────
+static void sw(Class cls, SEL sel, IMP imp, IMP *old) {
 
 static id (*orig_ud_obj)(id,SEL,id);
 static void (*orig_ud_setObj)(id,SEL,id,id);
