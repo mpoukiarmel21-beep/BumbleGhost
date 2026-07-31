@@ -1,0 +1,8 @@
+Package: com.bumbleghost.tweak
+Name: BumbleGhost
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Multi-account + GPS spoofing for Bumble
+Maintainer: BumbleGhost
+Author: BumbleGhost
+Section: Tweaks
