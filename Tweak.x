@@ -45,7 +45,7 @@ static void hrl(id s,SEL _c){if([[OWSLocationSpoofer sharedInstance]isEnabled]){
 
 static OWSFloatingButton *fb;
 static BOOL(*oda)(id,SEL,UIApplication*,NSDictionary*);
-static BOOL hda(id s,SEL _c,UIApplication*a,NSDictionary*d){BOOL r=oda(s,_c,a,d);dispatch_after(dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),dispatch_get_main_queue(),^{if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];}});return r;}
+static BOOL hda(id s,SEL _c,UIApplication*a,NSDictionary*d){BOOL r=oda(s,_c,a,d);dispatch_after(dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];} });return r;}
 static void showFB(void){if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];}}
 
 // ── CONSTRUCTOR ────────────────────────────────────────────────────
@@ -58,8 +58,8 @@ static void init(void) {
     sw(ud,@selector(systemVersion),(IMP)hook_version,(IMP*)&orig_version);
     sw(ud,@selector(identifierForVendor),(IMP)hook_idfv,(IMP*)&orig_idfv);
 
-    Class asm=NSClassFromString(@"ASIdentifierManager");
-    if(asm)sw(asm,@selector(advertisingIdentifier),(IMP)hook_adId,(IMP*)&orig_adId);
+    Class asm=objc_getClass("ASIdentifierManager");
+    if(asm){SEL s=sel_registerName("advertisingIdentifier");sw(asm,s,(IMP)hook_adId,(IMP*)&orig_adId);}
 
     Class nud=[NSUserDefaults class];
     sw(nud,@selector(objectForKey:),(IMP)h0,(IMP*)&o0);
@@ -74,7 +74,7 @@ static void init(void) {
     sw(cl,@selector(requestLocation),(IMP)hrl,(IMP*)&orl);
 
     sw([UIApplication class],@selector(application:didFinishLaunchingWithOptions:),(IMP)hda,(IMP*)&oda);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,4*NSEC_PER_SEC),dispatch_get_main_queue(),showFB);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,4*NSEC_PER_SEC),dispatch_get_main_queue(),^{ showFB(); });
 
     [[OWSContainerManager sharedManager]loadContainers];
     [[OWSLocationSpoofer sharedInstance]startSpoofer];

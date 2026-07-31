@@ -12,7 +12,7 @@ BumbleGhost_FILES = Tweak.x \
 	OWSDeviceSpoofer.m
 
 BumbleGhost_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
-BumbleGhost_FRAMEWORKS = Foundation UIKit CoreLocation QuartzCore
+BumbleGhost_FRAMEWORKS = Foundation UIKit CoreLocation QuartzCore AdSupport
 BumbleGhost_INSTALL_PATH = /usr/lib
 
 include $(THEOS_MAKE_PATH)/library.mk
