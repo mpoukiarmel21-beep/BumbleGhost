@@ -150,7 +150,7 @@ static OWSFloatingButton *fb;
 __attribute__((constructor))
 static void init(void) {
     @try {
-        NSLog(@"[BumbleGhost] v3.2 loaded");
+        NSLog(@"[TinderGhost] v3.2 loaded");
 
         // 1. Initialize managers FIRST, before hooks, to avoid
         //    dispatch_once reentrancy deadlocks with NSUserDefaults.
@@ -172,7 +172,7 @@ static void init(void) {
         [[OWSLocationSpoofer sharedInstance] startSpoofer];
 
         // 4. Show the floating button once the app is up
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             @try {
                 if (!fb) {
                     fb = [[OWSFloatingButton alloc] init];
@@ -182,12 +182,12 @@ static void init(void) {
                 [[OWSContainerManager sharedManager] loadContainers];
                 [[OWSLocationSpoofer sharedInstance] startSpoofer];
             } @catch (NSException *e) {
-                NSLog(@"[BumbleGhost] Post-launch init failed (safe): %@", e);
+                NSLog(@"[TinderGhost] Post-launch init failed (safe): %@", e);
             }
         });
 
-        NSLog(@"[BumbleGhost] v3.2 ready");
+        NSLog(@"[TinderGhost] v3.2 ready");
     } @catch (NSException *e) {
-        NSLog(@"[BumbleGhost] Constructor error (app continues without tweak): %@", e);
+        NSLog(@"[TinderGhost] Constructor error (app continues without tweak): %@", e);
     }
 }

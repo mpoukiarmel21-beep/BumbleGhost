@@ -138,41 +138,48 @@
         @"Bogotá": @{@"lat": @4.7110, @"lon": @-74.0721}
     };
     
-    NSLog(@"[OWS] Loaded %lu cities in database", (unsigned long)_citiesDatabase.count);
+    NSLog(@"[TinderGhost] Loaded %lu cities in database", (unsigned long)_citiesDatabase.count);
 }
 
 - (void)startSpoofer {
     @try {
         _isEnabled = YES;
 
+        NSString *latStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedLat"];
+        NSString *lonStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedLon"];
         NSString *cityOverride = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedCity"];
-        if (cityOverride) {
+        if (latStr && lonStr) {
+            double lat = [latStr doubleValue];
+            double lon = [lonStr doubleValue];
+            _currentFakeLocation = CLLocationCoordinate2DMake(lat, lon);
+            NSLog(@"[TinderGhost] Location spoofer started - custom (%.4f, %.4f) %@", lat, lon, cityOverride ?: @"");
+        } else if (cityOverride) {
             [self setFakeLocationForCity:cityOverride];
-            NSLog(@"[OWS] Location spoofer started - %@ (override)", cityOverride);
+            NSLog(@"[TinderGhost] Location spoofer started - %@ (override)", cityOverride);
         } else {
             // Load location from current container
             OWSContainer *container = [[OWSContainerManager sharedManager] currentContainer];
             if (container) {
                 _currentFakeLocation = CLLocationCoordinate2DMake(container.latitude, container.longitude);
-                NSLog(@"[OWS] Location spoofer started - %@ (%.4f, %.4f)", container.city, container.latitude, container.longitude);
+                NSLog(@"[TinderGhost] Location spoofer started - %@ (%.4f, %.4f)", container.city, container.latitude, container.longitude);
             }
         }
 
         // Hook CLLocationManager
         [self hookLocationManager];
     } @catch (NSException *e) {
-        NSLog(@"[OWS] startSpoofer failed (safe): %@", e);
+        NSLog(@"[TinderGhost] startSpoofer failed (safe): %@", e);
     }
 }
 
 - (void)stopSpoofer {
     _isEnabled = NO;
-    NSLog(@"[OWS] Location spoofer stopped");
+    NSLog(@"[TinderGhost] Location spoofer stopped");
 }
 
 - (void)setFakeLocation:(CLLocationCoordinate2D)coordinate {
     _currentFakeLocation = coordinate;
-    NSLog(@"[OWS] Fake location set to: %.4f, %.4f", coordinate.latitude, coordinate.longitude);
+    NSLog(@"[TinderGhost] Fake location set to: %.4f, %.4f", coordinate.latitude, coordinate.longitude);
     
     // Post notification for location change
     [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSLocationChanged" object:nil];
@@ -184,12 +191,29 @@
         if (coords) {
             double lat = [coords[@"lat"] doubleValue];
             double lon = [coords[@"lon"] doubleValue];
-            [self setFakeLocation:CLLocationCoordinate2DMake(lat, lon)];
-            [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"spoofedCity"];
-            NSLog(@"[OWS] Fake location set to %@", cityName);
+            [self setFakeLocationForLatitude:lat longitude:lon cityName:cityName];
         }
     } @catch (NSException *e) {
-        NSLog(@"[OWS] setFakeLocationForCity failed (safe): %@", e);
+        NSLog(@"[TinderGhost] setFakeLocationForCity failed (safe): %@", e);
+    }
+}
+
+- (void)setFakeLocationForLatitude:(double)latitude longitude:(double)longitude cityName:(NSString *)cityName {
+    @try {
+        [self setFakeLocation:CLLocationCoordinate2DMake(latitude, longitude)];
+        NSUserDefaults *ud = [NSUserDefaults standardUserDefaults];
+        [ud setObject:@(latitude).stringValue forKey:@"spoofedLat"];
+        [ud setObject:@(longitude).stringValue forKey:@"spoofedLon"];
+        if (cityName) {
+            [ud setObject:cityName forKey:@"spoofedCity"];
+        }
+        // Update current container so the choice is kept per container
+        [[OWSContainerManager sharedManager] updateCurrentContainerCity:cityName ?: @"Position personnalisée"
+                                                               latitude:latitude
+                                                              longitude:longitude];
+        NSLog(@"[TinderGhost] Fake location set to %.4f, %.4f (%@)", latitude, longitude, cityName ?: @"custom");
+    } @catch (NSException *e) {
+        NSLog(@"[TinderGhost] setFakeLocationForLatitude failed (safe): %@", e);
     }
 }
 
@@ -209,7 +233,7 @@
     }
     
     // Default to Paris if not found
-    NSLog(@"[OWS] City not found: %@, defaulting to Paris", cityName);
+    NSLog(@"[TinderGhost] City not found: %@, defaulting to Paris", cityName);
     return _citiesDatabase[@"Paris"];
 }
 
@@ -255,7 +279,7 @@ static void (*owsOrigRequestLocation)(id, SEL);
                     }
                 });
                 method_setImplementation(locMethod, newLocIMP);
-                NSLog(@"[OWS] Hooked CLLocationManager.location");
+                NSLog(@"[TinderGhost] Hooked CLLocationManager.location");
             }
 
             // Hook startUpdatingLocation: deliver fake location to delegate
@@ -274,11 +298,11 @@ static void (*owsOrigRequestLocation)(id, SEL);
                             }
                         }
                     } @catch (NSException *e) {
-                        NSLog(@"[OWS] startUpdatingLocation hook error (safe): %@", e);
+                        NSLog(@"[TinderGhost] startUpdatingLocation hook error (safe): %@", e);
                     }
                 });
                 method_setImplementation(startMethod, newStartIMP);
-                NSLog(@"[OWS] Hooked CLLocationManager.startUpdatingLocation");
+                NSLog(@"[TinderGhost] Hooked CLLocationManager.startUpdatingLocation");
             }
 
             // Hook requestLocation (iOS 9+): deliver fake location to delegate
@@ -297,14 +321,14 @@ static void (*owsOrigRequestLocation)(id, SEL);
                             }
                         }
                     } @catch (NSException *e) {
-                        NSLog(@"[OWS] requestLocation hook error (safe): %@", e);
+                        NSLog(@"[TinderGhost] requestLocation hook error (safe): %@", e);
                     }
                 });
                 method_setImplementation(requestMethod, newRequestIMP);
-                NSLog(@"[OWS] Hooked CLLocationManager.requestLocation");
+                NSLog(@"[TinderGhost] Hooked CLLocationManager.requestLocation");
             }
         } @catch (NSException *e) {
-            NSLog(@"[OWS] hookLocationManager failed (safe): %@", e);
+            NSLog(@"[TinderGhost] hookLocationManager failed (safe): %@", e);
         }
     });
 }

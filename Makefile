@@ -3,16 +3,17 @@ TARGET = iphone:clang:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-LIBRARY_NAME = BumbleGhost
+LIBRARY_NAME = TinderGhost
 
-BumbleGhost_FILES = Tweak.m \
+TinderGhost_FILES = Tweak.m \
 	OWSContainerManager.m \
 	OWSFloatingButton.m \
 	OWSLocationSpoofer.m \
-	OWSDeviceSpoofer.m
+	OWSDeviceSpoofer.m \
+	OWSMapPickerViewController.m
 
-BumbleGhost_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
-BumbleGhost_FRAMEWORKS = Foundation UIKit CoreLocation QuartzCore
-BumbleGhost_INSTALL_PATH = /usr/lib
+TinderGhost_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+TinderGhost_FRAMEWORKS = Foundation UIKit CoreLocation MapKit QuartzCore
+TinderGhost_INSTALL_PATH = /usr/lib
 
 include $(THEOS_MAKE_PATH)/library.mk

@@ -1,4 +1,4 @@
-name: Build BumbleGhost
+name: Build TinderGhost
 
 on:
   push:
@@ -25,5 +25,5 @@ jobs:
           THEOS: ${{ github.workspace }}/theos
       - uses: actions/upload-artifact@v4
         with:
-          name: BumbleGhost
-          path: .theos/obj/debug/BumbleGhost.dylib
+          name: TinderGhost
+          path: .theos/obj/debug/TinderGhost.dylib

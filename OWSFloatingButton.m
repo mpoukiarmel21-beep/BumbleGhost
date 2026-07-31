@@ -2,11 +2,27 @@
 #import "OWSContainerManager.h"
 #import "OWSLocationSpoofer.h"
 #import "OWSDeviceSpoofer.h"
+#import "OWSMapPickerViewController.h"
 #import <QuartzCore/QuartzCore.h>
 
-#define BUTTON_SIZE 50.0
+#define BUTTON_SIZE 56.0
 #define MENU_WIDTH 320.0
 #define MENU_HEIGHT 500.0
+
+// Present a view controller from the app's topmost view controller,
+// with a small delay to avoid "already presenting" conflicts.
+static void OWSShowVC(UIViewController *vc) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        @try {
+            UIViewController *top = [OWSContainerManager topViewController];
+            if (top) {
+                [top presentViewController:vc animated:YES completion:nil];
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[TinderGhost] Presentation failed (safe): %@", e);
+        }
+    });
+}
 
 @interface OWSFloatingWindow : UIWindow
 @end
@@ -34,7 +50,7 @@
         @try {
             [self setupFloatingButton];
         } @catch (NSException *e) {
-            NSLog(@"[OWS] Floating button setup failed (safe): %@", e);
+            NSLog(@"[TinderGhost] Floating button setup failed (safe): %@", e);
         }
     }
     return self;
@@ -108,26 +124,12 @@
     [_floatingButton addGestureRecognizer:_panGesture];
     
     [_floatingWindow addSubview:_floatingButton];
-    
-    // Add pulse animation
-    [self addPulseAnimation];
-    
-    NSLog(@"[OWS] Floating button created");
-}
 
-- (void)addPulseAnimation {
-    CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-    pulse.duration = 1.6;
-    pulse.fromValue = @1.0;
-    pulse.toValue = @1.06;
-    pulse.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    pulse.autoreverses = YES;
-    pulse.repeatCount = INFINITY;
-    [_floatingButton.layer addAnimation:pulse forKey:@"pulse"];
+    NSLog(@"[TinderGhost] Floating button created");
 }
 
 - (void)buttonTapped:(UIButton *)sender {
-    NSLog(@"[OWS] Floating button tapped");
+    NSLog(@"[TinderGhost] Floating button tapped");
     
     // Haptic feedback
     if (@available(iOS 10.0, *)) {
@@ -136,21 +138,19 @@
     }
     
     // Springy press animation
-    sender.transform = CGAffineTransformMakeScale(0.85, 0.85);
-    [UIView animateWithDuration:0.15
+    sender.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    [UIView animateWithDuration:0.12
                           delay:0
                         options:UIViewAnimationOptionCurveEaseOut
                      animations:^{
-        sender.transform = CGAffineTransformMakeScale(1.12, 1.12);
+        sender.transform = CGAffineTransformMakeScale(1.08, 1.08);
     } completion:^(BOOL finished) {
-        [UIView animateWithDuration:0.2
+        [UIView animateWithDuration:0.18
                               delay:0
                             options:UIViewAnimationOptionCurveEaseInOut
                          animations:^{
             sender.transform = CGAffineTransformIdentity;
-        } completion:^(BOOL finished2) {
-            [self addPulseAnimation];
-        }];
+        } completion:nil];
     }];
     
     // Show menu
@@ -199,13 +199,10 @@
             [weakSelf show];
         };
 
-        UIViewController *topVC = [self topViewController];
-        if (topVC) {
-            [self hide];
-            [topVC presentViewController:menuVC animated:YES completion:nil];
-        }
+        [self hide];
+        OWSShowVC(menuVC);
     } @catch (NSException *e) {
-        NSLog(@"[OWS] Menu presentation failed (safe): %@", e);
+        NSLog(@"[TinderGhost] Menu presentation failed (safe): %@", e);
         [self show];
     }
 }
@@ -213,9 +210,16 @@
 - (void)show {
     _floatingWindow.hidden = NO;
     _floatingButton.alpha = 0;
-    [UIView animateWithDuration:0.3 animations:^{
+    _floatingButton.transform = CGAffineTransformMakeScale(0.6, 0.6);
+    [UIView animateWithDuration:0.35
+                          delay:0
+         usingSpringWithDamping:0.6
+          initialSpringVelocity:0.6
+                        options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
         self.floatingButton.alpha = 1;
-    }];
+        self.floatingButton.transform = CGAffineTransformIdentity;
+    } completion:nil];
 }
 
 - (void)hide {
@@ -227,25 +231,7 @@
 }
 
 - (UIViewController *)topViewController {
-    UIWindow *window = nil;
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *s in [UIApplication sharedApplication].connectedScenes) {
-            if (![s isKindOfClass:[UIWindowScene class]]) continue;
-            if (s.activationState == UISceneActivationStateForegroundActive) {
-                for (UIWindow *w in s.windows) {
-                    if (w.isKeyWindow) { window = w; break; }
-                }
-                if (!window && s.windows.count > 0) window = s.windows.firstObject;
-                if (window) break;
-            }
-        }
-    }
-    if (!window) window = [UIApplication sharedApplication].keyWindow;
-    UIViewController *topVC = window.rootViewController;
-    while (topVC.presentedViewController) {
-        topVC = topVC.presentedViewController;
-    }
-    return topVC;
+    return [OWSContainerManager topViewController];
 }
 
 @end
@@ -289,7 +275,7 @@
     
     // Header
     UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"⚙️ BumbleGhost";
+    titleLabel.text = @"⚙️ TinderGhost";
     titleLabel.font = [UIFont boldSystemFontOfSize:24];
     titleLabel.textAlignment = NSTextAlignmentCenter;
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -576,42 +562,32 @@
         }
         [self presentViewController:alert animated:YES completion:nil];
     } @catch (NSException *e) {
-        NSLog(@"[OWS] ghostTapped failed (safe): %@", e);
+        NSLog(@"[TinderGhost] ghostTapped failed (safe): %@", e);
     }
 }
 
 - (void)locationTapped:(UIButton *)sender {
     @try {
-        OWSLocationSpoofer *spoofer = [OWSLocationSpoofer sharedInstance];
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"📍 Fake Localisation"
-                                                                       message:@"Choisir la ville simulée pour ce conteneur"
-                                                                preferredStyle:UIAlertControllerStyleActionSheet];
-        NSArray *cities = [spoofer availableCities];
-        for (NSString *city in cities) {
-            [alert addAction:[UIAlertAction actionWithTitle:city style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                [spoofer setFakeLocationForCity:city];
-                [self showConfirmation:[NSString stringWithFormat:@"Localisation: %@", city]];
-            }]];
-        }
-        [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
-        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
-            alert.popoverPresentationController.sourceView = sender;
-        }
-        [self presentViewController:alert animated:YES completion:nil];
+        OWSMapPickerViewController *picker = [[OWSMapPickerViewController alloc] initWithCompletion:^(double lat, double lon, NSString *cityName) {
+            [[OWSLocationSpoofer sharedInstance] setFakeLocationForLatitude:lat longitude:lon cityName:cityName];
+            [self showConfirmation:[NSString stringWithFormat:@"Localisation: %@\n(%.4f, %.4f)", cityName ?: @"Position personnalisée", lat, lon]];
+        }];
+        picker.modalPresentationStyle = UIModalPresentationFullScreen;
+        OWSShowVC(picker);
     } @catch (NSException *e) {
-        NSLog(@"[OWS] locationTapped failed (safe): %@", e);
+        NSLog(@"[TinderGhost] locationTapped failed (safe): %@", e);
     }
 }
 
 - (void)showConfirmation:(NSString *)message {
     @try {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅ BumbleGhost"
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅ TinderGhost"
                                                                        message:message
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
+        OWSShowVC(alert);
     } @catch (NSException *e) {
-        NSLog(@"[OWS] showConfirmation failed (safe): %@", e);
+        NSLog(@"[TinderGhost] showConfirmation failed (safe): %@", e);
     }
 }
 

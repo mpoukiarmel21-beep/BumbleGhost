@@ -27,7 +27,7 @@
             [self generateRandomDevice];
         }
     } @catch (NSException *e) {
-        NSLog(@"[OWS] ensureDefaults failed (safe): %@", e);
+        NSLog(@"[TinderGhost] ensureDefaults failed (safe): %@", e);
     }
 }
 

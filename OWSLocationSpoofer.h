@@ -10,6 +10,7 @@
 
 - (void)setFakeLocation:(CLLocationCoordinate2D)coordinate;
 - (void)setFakeLocationForCity:(NSString *)cityName;
+- (void)setFakeLocationForLatitude:(double)latitude longitude:(double)longitude cityName:(NSString *)cityName;
 - (NSDictionary *)coordinatesForCity:(NSString *)cityName;
 - (NSArray<NSString *> *)availableCities;
 

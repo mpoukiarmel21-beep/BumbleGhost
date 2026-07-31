@@ -66,7 +66,7 @@
             _deviceVersion = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceVersion"];
             _deviceIDFV = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceIDFV"];
         } @catch (NSException *e) {
-            NSLog(@"[OWS] Error decoding container: %@", e);
+            NSLog(@"[TinderGhost] Error decoding container: %@", e);
             return nil;
         }
     }
@@ -129,7 +129,7 @@
                                                                  fromData:data 
                                                                     error:&error];
                 if (error) {
-                    NSLog(@"[OWS] Error loading containers: %@", error);
+                    NSLog(@"[TinderGhost] Error loading containers: %@", error);
                     arr = nil;
                 }
                 if ([arr isKindOfClass:[NSArray class]]) {
@@ -162,15 +162,15 @@
             [[NSUserDefaults standardUserDefaults] synchronize];
         }
 
-        NSLog(@"[OWS] Loaded %lu containers, current: %@", (unsigned long)_mutableContainers.count, _currentContainer.displayName);
+        NSLog(@"[TinderGhost] Loaded %lu containers, current: %@", (unsigned long)_mutableContainers.count, _currentContainer.displayName);
     } @catch (NSException *e) {
-        NSLog(@"[OWS] loadContainers failed, using defaults: %@", e);
+        NSLog(@"[TinderGhost] loadContainers failed, using defaults: %@", e);
         _mutableContainers = [NSMutableArray array];
         if (_mutableContainers.count == 0) {
             @try {
                 [self createContainer:@"Compte Principal" city:@"Paris" latitude:48.8566 longitude:2.3522];
             } @catch (NSException *e2) {
-                NSLog(@"[OWS] Default container creation failed: %@", e2);
+                NSLog(@"[TinderGhost] Default container creation failed: %@", e2);
             }
         }
         if (!_currentContainer && _mutableContainers.count > 0) {
@@ -187,14 +187,14 @@
                                                              error:&error];
 
         if (error) {
-            NSLog(@"[OWS] Error archiving containers: %@", error);
+            NSLog(@"[TinderGhost] Error archiving containers: %@", error);
             return;
         }
 
         [data writeToFile:[self containersFilePath] atomically:YES];
-        NSLog(@"[OWS] Saved %lu containers", (unsigned long)_mutableContainers.count);
+        NSLog(@"[TinderGhost] Saved %lu containers", (unsigned long)_mutableContainers.count);
     } @catch (NSException *e) {
-        NSLog(@"[OWS] saveContainers failed (safe): %@", e);
+        NSLog(@"[TinderGhost] saveContainers failed (safe): %@", e);
     }
 }
 
@@ -207,12 +207,12 @@
         // Create isolated directory for this container
         [self createContainerDirectory:container.containerID];
 
-        NSLog(@"[OWS] Created container: %@", container);
+        NSLog(@"[TinderGhost] Created container: %@", container);
 
         // Post notification
         [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerCreated" object:container];
     } @catch (NSException *e) {
-        NSLog(@"[OWS] createContainer failed (safe): %@", e);
+        NSLog(@"[TinderGhost] createContainer failed (safe): %@", e);
     }
 }
 
@@ -222,7 +222,7 @@
     
     // Don't allow deletion of current container
     if ([_currentContainer.containerID isEqualToString:containerID]) {
-        NSLog(@"[OWS] Cannot delete current container");
+        NSLog(@"[TinderGhost] Cannot delete current container");
         return;
     }
     
@@ -232,7 +232,7 @@
     // Delete container directory
     [self deleteContainerDirectory:containerID];
     
-    NSLog(@"[OWS] Deleted container: %@", containerID);
+    NSLog(@"[TinderGhost] Deleted container: %@", containerID);
     
     // Post notification
     [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerDeleted" object:containerID];
@@ -241,7 +241,7 @@
 - (void)switchToContainer:(NSString *)containerID {
     OWSContainer *container = [self getContainerByID:containerID];
     if (!container) {
-        NSLog(@"[OWS] Container not found: %@", containerID);
+        NSLog(@"[TinderGhost] Container not found: %@", containerID);
         return;
     }
     
@@ -249,7 +249,7 @@
     [[NSUserDefaults standardUserDefaults] setObject:containerID forKey:CURRENT_CONTAINER_KEY];
     [[NSUserDefaults standardUserDefaults] synchronize];
     
-    NSLog(@"[OWS] Switched to container: %@ (%@)", container.displayName, container.city);
+    NSLog(@"[TinderGhost] Switched to container: %@ (%@)", container.displayName, container.city);
     
     // Post notification
     [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerSwitched" object:container];
@@ -271,7 +271,7 @@
                 [topVC presentViewController:alert animated:YES completion:nil];
             }
         } @catch (NSException *e) {
-            NSLog(@"[OWS] Switch alert failed (safe): %@", e);
+            NSLog(@"[TinderGhost] Switch alert failed (safe): %@", e);
         }
     });
 }
@@ -283,6 +283,19 @@
         }
     }
     return nil;
+}
+
+- (void)updateCurrentContainerCity:(NSString *)city latitude:(double)lat longitude:(double)lon {
+    @try {
+        if (!_currentContainer) return;
+        _currentContainer.city = city;
+        _currentContainer.latitude = lat;
+        _currentContainer.longitude = lon;
+        [self saveContainers];
+        NSLog(@"[TinderGhost] Container %@ updated: %@ (%.4f, %.4f)", _currentContainer.displayName, city, lat, lon);
+    } @catch (NSException *e) {
+        NSLog(@"[TinderGhost] updateCurrentContainerCity failed (safe): %@", e);
+    }
 }
 
 #pragma mark - Helper Methods
@@ -298,7 +311,7 @@
                                                attributes:nil 
                                                     error:&error];
     if (error) {
-        NSLog(@"[OWS] Error creating container directory: %@", error);
+        NSLog(@"[TinderGhost] Error creating container directory: %@", error);
     }
 }
 
@@ -310,11 +323,15 @@
     NSError *error = nil;
     [[NSFileManager defaultManager] removeItemAtPath:containerDir error:&error];
     if (error) {
-        NSLog(@"[OWS] Error deleting container directory: %@", error);
+        NSLog(@"[TinderGhost] Error deleting container directory: %@", error);
     }
 }
 
 - (UIViewController *)topViewController {
+    return [OWSContainerManager topViewController];
+}
+
++ (UIViewController *)topViewController {
     UIWindow *window = nil;
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *s in [UIApplication sharedApplication].connectedScenes) {

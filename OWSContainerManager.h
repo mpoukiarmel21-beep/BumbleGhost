@@ -35,5 +35,8 @@
 - (void)deleteContainer:(NSString *)containerID;
 - (void)switchToContainer:(NSString *)containerID;
 - (OWSContainer *)getContainerByID:(NSString *)containerID;
+- (void)updateCurrentContainerCity:(NSString *)city latitude:(double)lat longitude:(double)lon;
+
++ (UIViewController *)topViewController;
 
 @end
