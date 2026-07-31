@@ -57,7 +57,7 @@
     _searchCompleter.delegate = self;
     _searchCompleter.region = MKCoordinateRegionMake(CLLocationCoordinate2DMake(20, 0),
                                                       MKCoordinateSpanMake(180, 360));
-    _searchCompleter.resultTypes = MKLocalSearchCompletionResultTypeAddressLine | MKLocalSearchCompletionResultTypePointOfInterest;
+    _searchCompleter.resultTypes = MKLocalSearchCompleterResultTypeAddress | MKLocalSearchCompleterResultTypePointOfInterest;
 }
 
 - (void)loadCities {
