@@ -11,8 +11,7 @@ static void sw(Class cls, SEL sel, IMP imp, IMP *old) {
     if (m) { if (old) *old = method_getImplementation(m); method_setImplementation(m, imp); }
 }
 
-// ── DEVICE SPOOFING ────────────────────────────────────────────────
-
+// Device Spoofing
 static NSString* (*orig_name)(id,SEL);
 static NSString* (*orig_model)(id,SEL);
 static NSString* (*orig_version)(id,SEL);
@@ -25,8 +24,7 @@ static NSString* hook_version(id s,SEL _c){return [[OWSDeviceSpoofer sharedInsta
 static NSUUID* hook_idfv(id s,SEL _c){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return[[OWSDeviceSpoofer sharedInstance]deviceIDFV];return orig_idfv(s,_c);}
 static NSUUID* hook_adId(id s,SEL _c){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return[NSUUID UUID];return orig_adId(s,_c);}
 
-// ── NSUserDefaults ─────────────────────────────────────────────────
-
+// NSUserDefaults
 static id(*o0)(id,SEL,id);static BOOL(*o1)(id,SEL,id);static void(*o2)(id,SEL,id,id);static void(*o3)(id,SEL,BOOL,id);static void(*o4)(id,SEL,id);
 static id h0(id s,SEL _c,NSString*k){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return o0(s,_c,[NSString stringWithFormat:@"%@_%@",c,k]);return o0(s,_c,k);}
 static BOOL h1(id s,SEL _c,NSString*k){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return o1(s,_c,[NSString stringWithFormat:@"%@_%@",c,k]);return o1(s,_c,k);}
@@ -34,22 +32,19 @@ static void h2(id s,SEL _c,id v,NSString*k){NSString*c=[[OWSContainerManager sha
 static void h3(id s,SEL _c,BOOL v,NSString*k){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c){o3(s,_c,v,[NSString stringWithFormat:@"%@_%@",c,k]);return;}o3(s,_c,v,k);}
 static void h4(id s,SEL _c,NSString*k){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c){o4(s,_c,[NSString stringWithFormat:@"%@_%@",c,k]);return;}o4(s,_c,k);}
 
-// ── GPS ────────────────────────────────────────────────────────────
-
+// GPS
 static CLLocation*(*ol)(id,SEL);static void(*osu)(id,SEL);static void(*orl)(id,SEL);
 static CLLocation*hl(id s,SEL _c){if([[OWSLocationSpoofer sharedInstance]isEnabled]){CLLocationCoordinate2D cc=[[OWSLocationSpoofer sharedInstance]currentFakeLocation];return[[CLLocation alloc]initWithLatitude:cc.latitude longitude:cc.longitude];}return ol(s,_c);}
 static void hsu(id s,SEL _c){osu(s,_c);if([[OWSLocationSpoofer sharedInstance]isEnabled]){dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.5*NSEC_PER_SEC)),dispatch_get_main_queue(),^{CLLocationManager*m=(CLLocationManager*)s;if([m.delegate respondsToSelector:@selector(locationManager:didUpdateLocations:)]){CLLocationCoordinate2D cc=[[OWSLocationSpoofer sharedInstance]currentFakeLocation];CLLocation*l=[[CLLocation alloc]initWithCoordinate:cc altitude:0 horizontalAccuracy:5 verticalAccuracy:5 timestamp:[NSDate date]];[m.delegate locationManager:m didUpdateLocations:@[l]];}});}}
 static void hrl(id s,SEL _c){if([[OWSLocationSpoofer sharedInstance]isEnabled]){dispatch_async(dispatch_get_main_queue(),^{CLLocationManager*m=(CLLocationManager*)s;if([m.delegate respondsToSelector:@selector(locationManager:didUpdateLocations:)]){CLLocationCoordinate2D cc=[[OWSLocationSpoofer sharedInstance]currentFakeLocation];CLLocation*l=[[CLLocation alloc]initWithCoordinate:cc altitude:0 horizontalAccuracy:5 verticalAccuracy:5 timestamp:[NSDate date]];[m.delegate locationManager:m didUpdateLocations:@[l]];}});return;}orl(s,_c);}
 
-// ── GHOST BUTTON ───────────────────────────────────────────────────
-
+// Ghost Button
 static OWSFloatingButton *fb;
 static BOOL(*oda)(id,SEL,UIApplication*,NSDictionary*);
-static BOOL hda(id s,SEL _c,UIApplication*a,NSDictionary*d){BOOL r=oda(s,_c,a,d);dispatch_after(dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];} });return r;}
+static BOOL hda(id s,SEL _c,UIApplication*a,NSDictionary*d){BOOL r=oda(s,_c,a,d);dispatch_after(dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),dispatch_get_main_queue(),^{if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];}});return r;}
 static void showFB(void){if(!fb){fb=[[OWSFloatingButton alloc]init];[fb show];}}
 
-// ── CONSTRUCTOR ────────────────────────────────────────────────────
-
+// Constructor
 __attribute__((constructor))
 static void init(void) {
     Class ud=[UIDevice class];
@@ -58,8 +53,9 @@ static void init(void) {
     sw(ud,@selector(systemVersion),(IMP)hook_version,(IMP*)&orig_version);
     sw(ud,@selector(identifierForVendor),(IMP)hook_idfv,(IMP*)&orig_idfv);
 
-    Class asm=objc_getClass("ASIdentifierManager");
-    if(asm){SEL s=sel_registerName("advertisingIdentifier");sw(asm,s,(IMP)hook_adId,(IMP*)&orig_adId);}
+    SEL adSel = sel_registerName("advertisingIdentifier");
+    Class asm = objc_getClass("ASIdentifierManager");
+    if (asm) sw(asm, adSel, (IMP)hook_adId, (IMP*)&orig_adId);
 
     Class nud=[NSUserDefaults class];
     sw(nud,@selector(objectForKey:),(IMP)h0,(IMP*)&o0);
@@ -74,10 +70,9 @@ static void init(void) {
     sw(cl,@selector(requestLocation),(IMP)hrl,(IMP*)&orl);
 
     sw([UIApplication class],@selector(application:didFinishLaunchingWithOptions:),(IMP)hda,(IMP*)&oda);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,4*NSEC_PER_SEC),dispatch_get_main_queue(),^{ showFB(); });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,4*NSEC_PER_SEC),dispatch_get_main_queue(),^{showFB();});
 
     [[OWSContainerManager sharedManager]loadContainers];
     [[OWSLocationSpoofer sharedInstance]startSpoofer];
-
-    NSLog(@"[BumbleGhost] v2.1: DeviceSpoof + GPS + Containers + Ghost");
+    NSLog(@"[BumbleGhost] v2.1 loaded");
 }
