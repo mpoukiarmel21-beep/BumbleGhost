@@ -1,0 +1,262 @@
+#import "OWSContainerManager.h"
+#import <UIKit/UIKit.h>
+
+#define CONTAINERS_FILE @"OWSContainers.plist"
+#define CURRENT_CONTAINER_KEY @"OWSCurrentContainerID"
+
+@implementation OWSContainer
+
+- (instancetype)initWithName:(NSString *)name city:(NSString *)city latitude:(double)lat longitude:(double)lon {
+    self = [super init];
+    if (self) {
+        _containerID = [[NSUUID UUID] UUIDString];
+        _displayName = name;
+        _city = city;
+        _latitude = lat;
+        _longitude = lon;
+        _createdDate = [NSDate date];
+        
+        // Generate random color for visual identification
+        CGFloat hue = (arc4random() % 256) / 256.0;
+        _color = [UIColor colorWithHue:hue saturation:0.8 brightness:0.9 alpha:1.0];
+    }
+    return self;
+}
+
+// NSCoding implementation for persistence
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:_containerID forKey:@"containerID"];
+    [coder encodeObject:_displayName forKey:@"displayName"];
+    [coder encodeObject:_city forKey:@"city"];
+    [coder encodeDouble:_latitude forKey:@"latitude"];
+    [coder encodeDouble:_longitude forKey:@"longitude"];
+    [coder encodeObject:_createdDate forKey:@"createdDate"];
+    [coder encodeObject:_color forKey:@"color"];
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super init];
+    if (self) {
+        _containerID = [coder decodeObjectForKey:@"containerID"];
+        _displayName = [coder decodeObjectForKey:@"displayName"];
+        _city = [coder decodeObjectForKey:@"city"];
+        _latitude = [coder decodeDoubleForKey:@"latitude"];
+        _longitude = [coder decodeDoubleForKey:@"longitude"];
+        _createdDate = [coder decodeObjectForKey:@"createdDate"];
+        _color = [coder decodeObjectForKey:@"color"];
+    }
+    return self;
+}
+
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<OWSContainer: %@ (%@) - %@>", _displayName, _city, _containerID];
+}
+
+@end
+
+@implementation OWSContainerManager {
+    NSMutableArray<OWSContainer *> *_mutableContainers;
+    OWSContainer *_currentContainer;
+}
+
++ (instancetype)sharedManager {
+    static OWSContainerManager *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[self alloc] init];
+    });
+    return sharedInstance;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _mutableContainers = [NSMutableArray array];
+        [self loadContainers];
+    }
+    return self;
+}
+
+- (NSArray<OWSContainer *> *)containers {
+    return [_mutableContainers copy];
+}
+
+- (NSString *)currentContainerID {
+    return _currentContainer.containerID;
+}
+
+- (NSString *)containersFilePath {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsDirectory = [paths firstObject];
+    return [documentsDirectory stringByAppendingPathComponent:CONTAINERS_FILE];
+}
+
+- (void)loadContainers {
+    NSString *filePath = [self containersFilePath];
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
+        NSData *data = [NSData dataWithContentsOfFile:filePath];
+        if (data) {
+            NSError *error = nil;
+            _mutableContainers = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [OWSContainer class]]] 
+                                                                      fromData:data 
+                                                                         error:&error];
+            if (error) {
+                NSLog(@"[OWS] Error loading containers: %@", error);
+                _mutableContainers = [NSMutableArray array];
+            } else {
+                _mutableContainers = [_mutableContainers mutableCopy];
+            }
+        }
+    }
+    
+    // Load current container ID
+    NSString *currentID = [[NSUserDefaults standardUserDefaults] objectForKey:CURRENT_CONTAINER_KEY];
+    if (currentID) {
+        _currentContainer = [self getContainerByID:currentID];
+    }
+    
+    // Create default container if none exists
+    if (_mutableContainers.count == 0) {
+        [self createContainer:@"Compte Principal" city:@"Paris" latitude:48.8566 longitude:2.3522];
+    }
+    
+    // Set first container as current if none is set
+    if (!_currentContainer && _mutableContainers.count > 0) {
+        [self switchToContainer:_mutableContainers[0].containerID];
+    }
+    
+    NSLog(@"[OWS] Loaded %lu containers, current: %@", (unsigned long)_mutableContainers.count, _currentContainer.displayName);
+}
+
+- (void)saveContainers {
+    NSError *error = nil;
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:_mutableContainers 
+                                         requiringSecureCoding:NO 
+                                                         error:&error];
+    
+    if (error) {
+        NSLog(@"[OWS] Error archiving containers: %@", error);
+        return;
+    }
+    
+    [data writeToFile:[self containersFilePath] atomically:YES];
+    NSLog(@"[OWS] Saved %lu containers", (unsigned long)_mutableContainers.count);
+}
+
+- (void)createContainer:(NSString *)name city:(NSString *)city latitude:(double)lat longitude:(double)lon {
+    OWSContainer *container = [[OWSContainer alloc] initWithName:name city:city latitude:lat longitude:lon];
+    [_mutableContainers addObject:container];
+    [self saveContainers];
+    
+    // Create isolated directory for this container
+    [self createContainerDirectory:container.containerID];
+    
+    NSLog(@"[OWS] Created container: %@", container);
+    
+    // Post notification
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerCreated" object:container];
+}
+
+- (void)deleteContainer:(NSString *)containerID {
+    OWSContainer *container = [self getContainerByID:containerID];
+    if (!container) return;
+    
+    // Don't allow deletion of current container
+    if ([_currentContainer.containerID isEqualToString:containerID]) {
+        NSLog(@"[OWS] Cannot delete current container");
+        return;
+    }
+    
+    [_mutableContainers removeObject:container];
+    [self saveContainers];
+    
+    // Delete container directory
+    [self deleteContainerDirectory:containerID];
+    
+    NSLog(@"[OWS] Deleted container: %@", containerID);
+    
+    // Post notification
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerDeleted" object:containerID];
+}
+
+- (void)switchToContainer:(NSString *)containerID {
+    OWSContainer *container = [self getContainerByID:containerID];
+    if (!container) {
+        NSLog(@"[OWS] Container not found: %@", containerID);
+        return;
+    }
+    
+    _currentContainer = container;
+    [[NSUserDefaults standardUserDefaults] setObject:containerID forKey:CURRENT_CONTAINER_KEY];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    
+    NSLog(@"[OWS] Switched to container: %@ (%@)", container.displayName, container.city);
+    
+    // Post notification
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerSwitched" object:container];
+    
+    // Show alert to user
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🔄 Conteneur changé" 
+                                                                       message:[NSString stringWithFormat:@"Maintenant connecté à:\n%@ (%@)", container.displayName, container.city]
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            // Force app restart to apply changes
+            exit(0);
+        }]];
+        
+        UIViewController *topVC = [self topViewController];
+        if (topVC) {
+            [topVC presentViewController:alert animated:YES completion:nil];
+        }
+    });
+}
+
+- (OWSContainer *)getContainerByID:(NSString *)containerID {
+    for (OWSContainer *container in _mutableContainers) {
+        if ([container.containerID isEqualToString:containerID]) {
+            return container;
+        }
+    }
+    return nil;
+}
+
+#pragma mark - Helper Methods
+
+- (void)createContainerDirectory:(NSString *)containerID {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *baseDir = [paths firstObject];
+    NSString *containerDir = [baseDir stringByAppendingPathComponent:[NSString stringWithFormat:@"OWSContainers/%@", containerID]];
+    
+    NSError *error = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:containerDir 
+                              withIntermediateDirectories:YES 
+                                               attributes:nil 
+                                                    error:&error];
+    if (error) {
+        NSLog(@"[OWS] Error creating container directory: %@", error);
+    }
+}
+
+- (void)deleteContainerDirectory:(NSString *)containerID {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *baseDir = [paths firstObject];
+    NSString *containerDir = [baseDir stringByAppendingPathComponent:[NSString stringWithFormat:@"OWSContainers/%@", containerID]];
+    
+    NSError *error = nil;
+    [[NSFileManager defaultManager] removeItemAtPath:containerDir error:&error];
+    if (error) {
+        NSLog(@"[OWS] Error deleting container directory: %@", error);
+    }
+}
+
+- (UIViewController *)topViewController {
+    UIViewController *topVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+    while (topVC.presentedViewController) {
+        topVC = topVC.presentedViewController;
+    }
+    return topVC;
+}
+
+@end
