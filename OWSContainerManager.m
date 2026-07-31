@@ -19,6 +19,14 @@
         // Generate random color for visual identification
         CGFloat hue = (arc4random() % 256) / 256.0;
         _color = [UIColor colorWithHue:hue saturation:0.8 brightness:0.9 alpha:1.0];
+
+        // Random device characteristics per container
+        NSArray *models = @[@"iPhone15,2",@"iPhone15,3",@"iPhone14,7",@"iPhone14,8",@"iPhone15,4",@"iPhone15,5"];
+        NSArray *versions = @[@"16.5",@"16.6",@"17.0",@"17.1",@"16.3"];
+        _deviceModel = models[arc4random_uniform((uint32_t)models.count)];
+        _deviceVersion = versions[arc4random_uniform((uint32_t)versions.count)];
+        _deviceName = @"iPhone";
+        _deviceIDFV = [[NSUUID UUID] UUIDString];
     }
     return self;
 }
@@ -32,6 +40,10 @@
     [coder encodeDouble:_longitude forKey:@"longitude"];
     [coder encodeObject:_createdDate forKey:@"createdDate"];
     [coder encodeObject:_color forKey:@"color"];
+    [coder encodeObject:_deviceName forKey:@"deviceName"];
+    [coder encodeObject:_deviceModel forKey:@"deviceModel"];
+    [coder encodeObject:_deviceVersion forKey:@"deviceVersion"];
+    [coder encodeObject:_deviceIDFV forKey:@"deviceIDFV"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -44,6 +56,10 @@
         _longitude = [coder decodeDoubleForKey:@"longitude"];
         _createdDate = [coder decodeObjectForKey:@"createdDate"];
         _color = [coder decodeObjectForKey:@"color"];
+        _deviceName = [coder decodeObjectForKey:@"deviceName"];
+        _deviceModel = [coder decodeObjectForKey:@"deviceModel"];
+        _deviceVersion = [coder decodeObjectForKey:@"deviceVersion"];
+        _deviceIDFV = [coder decodeObjectForKey:@"deviceIDFV"];
     }
     return self;
 }

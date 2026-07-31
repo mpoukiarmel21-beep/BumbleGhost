@@ -11,6 +11,12 @@
 @property (nonatomic, strong) NSDate *createdDate;
 @property (nonatomic, strong) UIColor *color;
 
+// Device spoofing per container
+@property (nonatomic, strong) NSString *deviceName;
+@property (nonatomic, strong) NSString *deviceModel;
+@property (nonatomic, strong) NSString *deviceVersion;
+@property (nonatomic, strong) NSString *deviceIDFV;  // UUID string
+
 - (instancetype)initWithName:(NSString *)name city:(NSString *)city latitude:(double)lat longitude:(double)lon;
 
 @end
