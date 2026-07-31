@@ -31,7 +31,11 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [self setupFloatingButton];
+        @try {
+            [self setupFloatingButton];
+        } @catch (NSException *e) {
+            NSLog(@"[OWS] Floating button setup failed (safe): %@", e);
+        }
     }
     return self;
 }
@@ -185,19 +189,24 @@
 }
 
 - (void)showContainerMenu {
-    OWSContainerMenuViewController *menuVC = [[OWSContainerMenuViewController alloc] init];
-    menuVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
-    menuVC.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
-    
-    __weak typeof(self) weakSelf = self;
-    menuVC.onDismiss = ^{
-        [weakSelf show];
-    };
-    
-    UIViewController *topVC = [self topViewController];
-    if (topVC) {
-        [self hide];
-        [topVC presentViewController:menuVC animated:YES completion:nil];
+    @try {
+        OWSContainerMenuViewController *menuVC = [[OWSContainerMenuViewController alloc] init];
+        menuVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        menuVC.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+
+        __weak typeof(self) weakSelf = self;
+        menuVC.onDismiss = ^{
+            [weakSelf show];
+        };
+
+        UIViewController *topVC = [self topViewController];
+        if (topVC) {
+            [self hide];
+            [topVC presentViewController:menuVC animated:YES completion:nil];
+        }
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] Menu presentation failed (safe): %@", e);
+        [self show];
     }
 }
 
@@ -549,49 +558,61 @@
 }
 
 - (void)ghostTapped:(UIButton *)sender {
-    OWSDeviceSpoofer *spoofer = [OWSDeviceSpoofer sharedInstance];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"👻 Ghost - Modèle iPhone"
-                                                                   message:@"Choisir le modèle simulé pour ce conteneur"
-                                                            preferredStyle:UIAlertControllerStyleActionSheet];
-    for (NSDictionary *d in [spoofer availableDevices]) {
-        NSString *name = d[@"name"];
-        [alert addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [spoofer setDeviceByName:name];
-            [self showConfirmation:[NSString stringWithFormat:@"Modèle Ghost: %@", name]];
-        }]];
+    @try {
+        OWSDeviceSpoofer *spoofer = [OWSDeviceSpoofer sharedInstance];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"👻 Ghost - Modèle iPhone"
+                                                                       message:@"Choisir le modèle simulé pour ce conteneur"
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+        for (NSDictionary *d in [spoofer availableDevices]) {
+            NSString *name = d[@"name"];
+            [alert addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+                [spoofer setDeviceByName:name];
+                [self showConfirmation:[NSString stringWithFormat:@"Modèle Ghost: %@", name]];
+            }]];
+        }
+        [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
+        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+            alert.popoverPresentationController.sourceView = sender;
+        }
+        [self presentViewController:alert animated:YES completion:nil];
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] ghostTapped failed (safe): %@", e);
     }
-    [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
-    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
-        alert.popoverPresentationController.sourceView = sender;
-    }
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)locationTapped:(UIButton *)sender {
-    OWSLocationSpoofer *spoofer = [OWSLocationSpoofer sharedInstance];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"📍 Fake Localisation"
-                                                                   message:@"Choisir la ville simulée pour ce conteneur"
-                                                            preferredStyle:UIAlertControllerStyleActionSheet];
-    NSArray *cities = [spoofer availableCities];
-    for (NSString *city in cities) {
-        [alert addAction:[UIAlertAction actionWithTitle:city style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [spoofer setFakeLocationForCity:city];
-            [self showConfirmation:[NSString stringWithFormat:@"Localisation: %@", city]];
-        }]];
+    @try {
+        OWSLocationSpoofer *spoofer = [OWSLocationSpoofer sharedInstance];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"📍 Fake Localisation"
+                                                                       message:@"Choisir la ville simulée pour ce conteneur"
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+        NSArray *cities = [spoofer availableCities];
+        for (NSString *city in cities) {
+            [alert addAction:[UIAlertAction actionWithTitle:city style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+                [spoofer setFakeLocationForCity:city];
+                [self showConfirmation:[NSString stringWithFormat:@"Localisation: %@", city]];
+            }]];
+        }
+        [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
+        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+            alert.popoverPresentationController.sourceView = sender;
+        }
+        [self presentViewController:alert animated:YES completion:nil];
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] locationTapped failed (safe): %@", e);
     }
-    [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
-    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
-        alert.popoverPresentationController.sourceView = sender;
-    }
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)showConfirmation:(NSString *)message {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅ BumbleGhost"
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    @try {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅ BumbleGhost"
+                                                                       message:message
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] showConfirmation failed (safe): %@", e);
+    }
 }
 
 - (void)backgroundTapped:(UITapGestureRecognizer *)gesture {

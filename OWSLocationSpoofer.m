@@ -142,24 +142,27 @@
 }
 
 - (void)startSpoofer {
-    _isEnabled = YES;
-    
-    NSString *cityOverride = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedCity"];
-    if (cityOverride) {
-        [self setFakeLocationForCity:cityOverride];
-        NSLog(@"[OWS] Location spoofer started - %@ (override)", cityOverride);
-        return;
+    @try {
+        _isEnabled = YES;
+
+        NSString *cityOverride = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedCity"];
+        if (cityOverride) {
+            [self setFakeLocationForCity:cityOverride];
+            NSLog(@"[OWS] Location spoofer started - %@ (override)", cityOverride);
+        } else {
+            // Load location from current container
+            OWSContainer *container = [[OWSContainerManager sharedManager] currentContainer];
+            if (container) {
+                _currentFakeLocation = CLLocationCoordinate2DMake(container.latitude, container.longitude);
+                NSLog(@"[OWS] Location spoofer started - %@ (%.4f, %.4f)", container.city, container.latitude, container.longitude);
+            }
+        }
+
+        // Hook CLLocationManager
+        [self hookLocationManager];
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] startSpoofer failed (safe): %@", e);
     }
-    
-    // Load location from current container
-    OWSContainer *container = [[OWSContainerManager sharedManager] currentContainer];
-    if (container) {
-        _currentFakeLocation = CLLocationCoordinate2DMake(container.latitude, container.longitude);
-        NSLog(@"[OWS] Location spoofer started - %@ (%.4f, %.4f)", container.city, container.latitude, container.longitude);
-    }
-    
-    // Hook CLLocationManager
-    [self hookLocationManager];
 }
 
 - (void)stopSpoofer {
@@ -176,13 +179,17 @@
 }
 
 - (void)setFakeLocationForCity:(NSString *)cityName {
-    NSDictionary *coords = [self coordinatesForCity:cityName];
-    if (coords) {
-        double lat = [coords[@"lat"] doubleValue];
-        double lon = [coords[@"lon"] doubleValue];
-        [self setFakeLocation:CLLocationCoordinate2DMake(lat, lon)];
-        [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"spoofedCity"];
-        NSLog(@"[OWS] Fake location set to %@", cityName);
+    @try {
+        NSDictionary *coords = [self coordinatesForCity:cityName];
+        if (coords) {
+            double lat = [coords[@"lat"] doubleValue];
+            double lon = [coords[@"lon"] doubleValue];
+            [self setFakeLocation:CLLocationCoordinate2DMake(lat, lon)];
+            [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"spoofedCity"];
+            NSLog(@"[OWS] Fake location set to %@", cityName);
+        }
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] setFakeLocationForCity failed (safe): %@", e);
     }
 }
 
@@ -210,61 +217,94 @@
     return [_citiesDatabase.allKeys sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
 }
 
+- (CLLocation *)fakeLocation {
+    return [[CLLocation alloc] initWithCoordinate:_currentFakeLocation
+                                         altitude:10
+                               horizontalAccuracy:5
+                                 verticalAccuracy:5
+                                           course:0
+                                            speed:0
+                                        timestamp:[NSDate date]];
+}
+
 #pragma mark - Location Manager Hooking
 
+static void (*owsOrigStartUpdating)(id, SEL);
+static void (*owsOrigRequestLocation)(id, SEL);
+
 - (void)hookLocationManager {
-    // Hook CLLocationManager methods using method swizzling
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        Class locationManagerClass = NSClassFromString(@"CLLocationManager");
-        
-        // Hook location getter
-        Method originalLocation = class_getInstanceMethod(locationManagerClass, @selector(location));
-        if (originalLocation) {
-            IMP newLocationIMP = imp_implementationWithBlock(^CLLocation*(id _self) {
-                if ([OWSLocationSpoofer sharedInstance].isEnabled) {
-                    CLLocationCoordinate2D fakeCoord = [OWSLocationSpoofer sharedInstance].currentFakeLocation;
-                    CLLocation *fakeLocation = [[CLLocation alloc] initWithLatitude:fakeCoord.latitude 
-                                                                          longitude:fakeCoord.longitude];
-                    return fakeLocation;
-                }
-                
-                // Call original if spoofing disabled
-                typedef CLLocation* (*OriginalIMP)(id, SEL);
-                OriginalIMP original = (OriginalIMP)method_getImplementation(originalLocation);
-                return original(_self, @selector(location));
-            });
-            
-            method_setImplementation(originalLocation, newLocationIMP);
-            NSLog(@"[OWS] Hooked CLLocationManager.location");
-        }
-        
-        // Hook delegate callbacks
-        SEL delegateSelector = @selector(locationManager:didUpdateLocations:);
-        Method delegateMethod = class_getInstanceMethod(locationManagerClass, delegateSelector);
-        if (delegateMethod) {
-            IMP newDelegateIMP = imp_implementationWithBlock(^void(id _self, CLLocationManager *manager, NSArray<CLLocation *> *locations) {
-                if ([OWSLocationSpoofer sharedInstance].isEnabled) {
-                    CLLocationCoordinate2D fakeCoord = [OWSLocationSpoofer sharedInstance].currentFakeLocation;
-                    CLLocation *fakeLocation = [[CLLocation alloc] initWithLatitude:fakeCoord.latitude 
-                                                                          longitude:fakeCoord.longitude];
-                    
-                    // Call original delegate with fake location
-                    id<CLLocationManagerDelegate> delegate = manager.delegate;
-                    if (delegate && [delegate respondsToSelector:delegateSelector]) {
-                        [delegate locationManager:manager didUpdateLocations:@[fakeLocation]];
+        @try {
+            Class cls = NSClassFromString(@"CLLocationManager");
+            if (!cls) return;
+
+            // Hook location getter
+            Method locMethod = class_getInstanceMethod(cls, @selector(location));
+            if (locMethod) {
+                IMP originalLocIMP = method_getImplementation(locMethod);
+                IMP newLocIMP = imp_implementationWithBlock(^CLLocation*(CLLocationManager *_self) {
+                    @try {
+                        OWSLocationSpoofer *sp = [OWSLocationSpoofer sharedInstance];
+                        if (sp.isEnabled) {
+                            return [sp fakeLocation];
+                        }
+                        return ((CLLocation*(*)(id,SEL))originalLocIMP)(_self, @selector(location));
+                    } @catch (NSException *e) {
+                        return ((CLLocation*(*)(id,SEL))originalLocIMP)(_self, @selector(location));
                     }
-                    return;
-                }
-                
-                // Call original
-                typedef void (*OriginalDelegateIMP)(id, SEL, CLLocationManager *, NSArray<CLLocation *> *);
-                OriginalDelegateIMP original = (OriginalDelegateIMP)method_getImplementation(delegateMethod);
-                original(_self, delegateSelector, manager, locations);
-            });
-            
-            method_setImplementation(delegateMethod, newDelegateIMP);
-            NSLog(@"[OWS] Hooked CLLocationManager delegate callbacks");
+                });
+                method_setImplementation(locMethod, newLocIMP);
+                NSLog(@"[OWS] Hooked CLLocationManager.location");
+            }
+
+            // Hook startUpdatingLocation: deliver fake location to delegate
+            Method startMethod = class_getInstanceMethod(cls, @selector(startUpdatingLocation));
+            if (startMethod) {
+                owsOrigStartUpdating = (void(*)(id,SEL))method_getImplementation(startMethod);
+                IMP newStartIMP = imp_implementationWithBlock(^(CLLocationManager *_self) {
+                    owsOrigStartUpdating(_self, @selector(startUpdatingLocation));
+                    @try {
+                        OWSLocationSpoofer *sp = [OWSLocationSpoofer sharedInstance];
+                        if (sp.isEnabled) {
+                            CLLocation *fakeLocation = [sp fakeLocation];
+                            id delegate = _self.delegate;
+                            if (delegate && [delegate respondsToSelector:@selector(locationManager:didUpdateLocations:)]) {
+                                [delegate locationManager:_self didUpdateLocations:@[fakeLocation]];
+                            }
+                        }
+                    } @catch (NSException *e) {
+                        NSLog(@"[OWS] startUpdatingLocation hook error (safe): %@", e);
+                    }
+                });
+                method_setImplementation(startMethod, newStartIMP);
+                NSLog(@"[OWS] Hooked CLLocationManager.startUpdatingLocation");
+            }
+
+            // Hook requestLocation (iOS 9+): deliver fake location to delegate
+            Method requestMethod = class_getInstanceMethod(cls, @selector(requestLocation));
+            if (requestMethod) {
+                owsOrigRequestLocation = (void(*)(id,SEL))method_getImplementation(requestMethod);
+                IMP newRequestIMP = imp_implementationWithBlock(^(CLLocationManager *_self) {
+                    owsOrigRequestLocation(_self, @selector(requestLocation));
+                    @try {
+                        OWSLocationSpoofer *sp = [OWSLocationSpoofer sharedInstance];
+                        if (sp.isEnabled) {
+                            CLLocation *fakeLocation = [sp fakeLocation];
+                            id delegate = _self.delegate;
+                            if (delegate && [delegate respondsToSelector:@selector(locationManager:didUpdateLocations:)]) {
+                                [delegate locationManager:_self didUpdateLocations:@[fakeLocation]];
+                            }
+                        }
+                    } @catch (NSException *e) {
+                        NSLog(@"[OWS] requestLocation hook error (safe): %@", e);
+                    }
+                });
+                method_setImplementation(requestMethod, newRequestIMP);
+                NSLog(@"[OWS] Hooked CLLocationManager.requestLocation");
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[OWS] hookLocationManager failed (safe): %@", e);
         }
     });
 }

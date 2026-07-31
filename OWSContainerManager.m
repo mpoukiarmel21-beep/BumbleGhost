@@ -6,6 +6,10 @@
 
 @implementation OWSContainer
 
++ (BOOL)supportsSecureCoding {
+    return YES;
+}
+
 - (instancetype)initWithName:(NSString *)name city:(NSString *)city latitude:(double)lat longitude:(double)lon {
     self = [super init];
     if (self) {
@@ -49,17 +53,22 @@
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super init];
     if (self) {
-        _containerID = [coder decodeObjectForKey:@"containerID"];
-        _displayName = [coder decodeObjectForKey:@"displayName"];
-        _city = [coder decodeObjectForKey:@"city"];
-        _latitude = [coder decodeDoubleForKey:@"latitude"];
-        _longitude = [coder decodeDoubleForKey:@"longitude"];
-        _createdDate = [coder decodeObjectForKey:@"createdDate"];
-        _color = [coder decodeObjectForKey:@"color"];
-        _deviceName = [coder decodeObjectForKey:@"deviceName"];
-        _deviceModel = [coder decodeObjectForKey:@"deviceModel"];
-        _deviceVersion = [coder decodeObjectForKey:@"deviceVersion"];
-        _deviceIDFV = [coder decodeObjectForKey:@"deviceIDFV"];
+        @try {
+            _containerID = [coder decodeObjectOfClass:[NSString class] forKey:@"containerID"];
+            _displayName = [coder decodeObjectOfClass:[NSString class] forKey:@"displayName"];
+            _city = [coder decodeObjectOfClass:[NSString class] forKey:@"city"];
+            _latitude = [coder decodeDoubleForKey:@"latitude"];
+            _longitude = [coder decodeDoubleForKey:@"longitude"];
+            _createdDate = [coder decodeObjectOfClass:[NSDate class] forKey:@"createdDate"];
+            _color = [coder decodeObjectOfClass:[UIColor class] forKey:@"color"];
+            _deviceName = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceName"];
+            _deviceModel = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceModel"];
+            _deviceVersion = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceVersion"];
+            _deviceIDFV = [coder decodeObjectOfClass:[NSString class] forKey:@"deviceIDFV"];
+        } @catch (NSException *e) {
+            NSLog(@"[OWS] Error decoding container: %@", e);
+            return nil;
+        }
     }
     return self;
 }
@@ -108,70 +117,103 @@
 }
 
 - (void)loadContainers {
-    NSString *filePath = [self containersFilePath];
-    
-    if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
-        NSData *data = [NSData dataWithContentsOfFile:filePath];
-        if (data) {
-            NSError *error = nil;
-            _mutableContainers = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [OWSContainer class], [NSString class], [NSDate class], [UIColor class]]] 
-                                                                      fromData:data 
-                                                                         error:&error];
-            if (error) {
-                NSLog(@"[OWS] Error loading containers: %@", error);
-                _mutableContainers = [NSMutableArray array];
-            } else {
-                _mutableContainers = [_mutableContainers mutableCopy];
+    @try {
+        _mutableContainers = [NSMutableArray array];
+
+        NSString *filePath = [self containersFilePath];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
+            NSData *data = [NSData dataWithContentsOfFile:filePath];
+            if (data) {
+                NSError *error = nil;
+                NSArray *arr = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [OWSContainer class], [NSString class], [NSDate class], [UIColor class]]] 
+                                                                 fromData:data 
+                                                                    error:&error];
+                if (error) {
+                    NSLog(@"[OWS] Error loading containers: %@", error);
+                    arr = nil;
+                }
+                if ([arr isKindOfClass:[NSArray class]]) {
+                    NSMutableArray *valid = [NSMutableArray array];
+                    for (id obj in arr) {
+                        if ([obj isKindOfClass:[OWSContainer class]]) {
+                            [valid addObject:obj];
+                        }
+                    }
+                    _mutableContainers = valid;
+                }
             }
         }
+
+        // Load current container ID
+        NSString *currentID = [[NSUserDefaults standardUserDefaults] objectForKey:CURRENT_CONTAINER_KEY];
+        if (currentID) {
+            _currentContainer = [self getContainerByID:currentID];
+        }
+
+        // Create default container if none exists
+        if (_mutableContainers.count == 0) {
+            [self createContainer:@"Compte Principal" city:@"Paris" latitude:48.8566 longitude:2.3522];
+        }
+
+        // Set first container as current if none is set
+        if (!_currentContainer && _mutableContainers.count > 0) {
+            _currentContainer = _mutableContainers[0];
+            [[NSUserDefaults standardUserDefaults] setObject:_currentContainer.containerID forKey:CURRENT_CONTAINER_KEY];
+            [[NSUserDefaults standardUserDefaults] synchronize];
+        }
+
+        NSLog(@"[OWS] Loaded %lu containers, current: %@", (unsigned long)_mutableContainers.count, _currentContainer.displayName);
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] loadContainers failed, using defaults: %@", e);
+        _mutableContainers = [NSMutableArray array];
+        if (_mutableContainers.count == 0) {
+            @try {
+                [self createContainer:@"Compte Principal" city:@"Paris" latitude:48.8566 longitude:2.3522];
+            } @catch (NSException *e2) {
+                NSLog(@"[OWS] Default container creation failed: %@", e2);
+            }
+        }
+        if (!_currentContainer && _mutableContainers.count > 0) {
+            _currentContainer = _mutableContainers[0];
+        }
     }
-    
-    // Load current container ID
-    NSString *currentID = [[NSUserDefaults standardUserDefaults] objectForKey:CURRENT_CONTAINER_KEY];
-    if (currentID) {
-        _currentContainer = [self getContainerByID:currentID];
-    }
-    
-    // Create default container if none exists
-    if (_mutableContainers.count == 0) {
-        [self createContainer:@"Compte Principal" city:@"Paris" latitude:48.8566 longitude:2.3522];
-    }
-    
-    // Set first container as current if none is set
-    if (!_currentContainer && _mutableContainers.count > 0) {
-        [self switchToContainer:_mutableContainers[0].containerID];
-    }
-    
-    NSLog(@"[OWS] Loaded %lu containers, current: %@", (unsigned long)_mutableContainers.count, _currentContainer.displayName);
 }
 
 - (void)saveContainers {
-    NSError *error = nil;
-    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:_mutableContainers 
-                                         requiringSecureCoding:NO 
-                                                         error:&error];
-    
-    if (error) {
-        NSLog(@"[OWS] Error archiving containers: %@", error);
-        return;
+    @try {
+        NSError *error = nil;
+        NSData *data = [NSKeyedArchiver archivedDataWithRootObject:_mutableContainers 
+                                             requiringSecureCoding:YES 
+                                                             error:&error];
+
+        if (error) {
+            NSLog(@"[OWS] Error archiving containers: %@", error);
+            return;
+        }
+
+        [data writeToFile:[self containersFilePath] atomically:YES];
+        NSLog(@"[OWS] Saved %lu containers", (unsigned long)_mutableContainers.count);
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] saveContainers failed (safe): %@", e);
     }
-    
-    [data writeToFile:[self containersFilePath] atomically:YES];
-    NSLog(@"[OWS] Saved %lu containers", (unsigned long)_mutableContainers.count);
 }
 
 - (void)createContainer:(NSString *)name city:(NSString *)city latitude:(double)lat longitude:(double)lon {
-    OWSContainer *container = [[OWSContainer alloc] initWithName:name city:city latitude:lat longitude:lon];
-    [_mutableContainers addObject:container];
-    [self saveContainers];
-    
-    // Create isolated directory for this container
-    [self createContainerDirectory:container.containerID];
-    
-    NSLog(@"[OWS] Created container: %@", container);
-    
-    // Post notification
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerCreated" object:container];
+    @try {
+        OWSContainer *container = [[OWSContainer alloc] initWithName:name city:city latitude:lat longitude:lon];
+        [_mutableContainers addObject:container];
+        [self saveContainers];
+
+        // Create isolated directory for this container
+        [self createContainerDirectory:container.containerID];
+
+        NSLog(@"[OWS] Created container: %@", container);
+
+        // Post notification
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerCreated" object:container];
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] createContainer failed (safe): %@", e);
+    }
 }
 
 - (void)deleteContainer:(NSString *)containerID {
@@ -212,19 +254,24 @@
     // Post notification
     [[NSNotificationCenter defaultCenter] postNotificationName:@"OWSContainerSwitched" object:container];
     
-    // Show alert to user
+    // Show alert to user (only when app is active)
+    if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🔄 Conteneur changé" 
-                                                                       message:[NSString stringWithFormat:@"Maintenant connecté à:\n%@ (%@)", container.displayName, container.city]
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            // Force app restart to apply changes
-            exit(0);
-        }]];
-        
-        UIViewController *topVC = [self topViewController];
-        if (topVC) {
-            [topVC presentViewController:alert animated:YES completion:nil];
+        @try {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🔄 Conteneur changé" 
+                                                                           message:[NSString stringWithFormat:@"Maintenant connecté à:\n%@ (%@)", container.displayName, container.city]
+                                                                    preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+                // Force app restart to apply changes
+                exit(0);
+            }]];
+            
+            UIViewController *topVC = [self topViewController];
+            if (topVC) {
+                [topVC presentViewController:alert animated:YES completion:nil];
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[OWS] Switch alert failed (safe): %@", e);
         }
     });
 }

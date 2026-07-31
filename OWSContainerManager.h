@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-@interface OWSContainer : NSObject <NSCoding>
+@interface OWSContainer : NSObject <NSSecureCoding>
 
 @property (nonatomic, strong) NSString *containerID;
 @property (nonatomic, strong) NSString *displayName;

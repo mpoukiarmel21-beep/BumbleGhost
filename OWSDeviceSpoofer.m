@@ -22,8 +22,12 @@
 }
 
 - (void)ensureDefaults {
-    if (![[self ud] objectForKey:@"spoofedModel"]) {
-        [self generateRandomDevice];
+    @try {
+        if (![[self ud] objectForKey:@"spoofedModel"]) {
+            [self generateRandomDevice];
+        }
+    } @catch (NSException *e) {
+        NSLog(@"[OWS] ensureDefaults failed (safe): %@", e);
     }
 }
 
@@ -73,39 +77,55 @@
 }
 
 - (NSString *)deviceName {
-    NSString *v = [[self ud] objectForKey:@"spoofedName"];
-    if (!v) { v = @"iPhone"; [[self ud] setObject:v forKey:@"spoofedName"]; }
-    return v;
+    @try {
+        NSString *v = [[self ud] objectForKey:@"spoofedName"];
+        if (!v) { v = @"iPhone"; [[self ud] setObject:v forKey:@"spoofedName"]; }
+        return v;
+    } @catch (NSException *e) {
+        return @"iPhone";
+    }
 }
 - (void)setDeviceName:(NSString *)name {
-    [[self ud] setObject:name forKey:@"spoofedName"];
+    @try { [[self ud] setObject:name forKey:@"spoofedName"]; } @catch (NSException *e) {}
 }
 
 - (NSString *)deviceModel {
-    NSString *v = [[self ud] objectForKey:@"spoofedModel"];
-    if (!v) { [self generateRandomDevice]; v = [[self ud] objectForKey:@"spoofedModel"]; }
-    return v;
+    @try {
+        NSString *v = [[self ud] objectForKey:@"spoofedModel"];
+        if (!v) { [self generateRandomDevice]; v = [[self ud] objectForKey:@"spoofedModel"]; }
+        return v;
+    } @catch (NSException *e) {
+        return [[self ud] objectForKey:@"spoofedModel"];
+    }
 }
 - (void)setDeviceModel:(NSString *)m {
-    [[self ud] setObject:m forKey:@"spoofedModel"];
+    @try { [[self ud] setObject:m forKey:@"spoofedModel"]; } @catch (NSException *e) {}
 }
 
 - (NSString *)deviceVersion {
-    NSString *v = [[self ud] objectForKey:@"spoofedVersion"];
-    if (!v) { v = @"17.5"; [[self ud] setObject:v forKey:@"spoofedVersion"]; }
-    return v;
+    @try {
+        NSString *v = [[self ud] objectForKey:@"spoofedVersion"];
+        if (!v) { v = @"17.5"; [[self ud] setObject:v forKey:@"spoofedVersion"]; }
+        return v;
+    } @catch (NSException *e) {
+        return @"17.5";
+    }
 }
 - (void)setDeviceVersion:(NSString *)v {
-    [[self ud] setObject:v forKey:@"spoofedVersion"];
+    @try { [[self ud] setObject:v forKey:@"spoofedVersion"]; } @catch (NSException *e) {}
 }
 
 - (NSUUID *)deviceIDFV {
-    NSString *s = [[self ud] objectForKey:@"spoofedIDFV"];
-    if (!s) { s = [[NSUUID UUID] UUIDString]; [[self ud] setObject:s forKey:@"spoofedIDFV"]; }
-    return [[NSUUID alloc] initWithUUIDString:s];
+    @try {
+        NSString *s = [[self ud] objectForKey:@"spoofedIDFV"];
+        if (!s) { s = [[NSUUID UUID] UUIDString]; [[self ud] setObject:s forKey:@"spoofedIDFV"]; }
+        return [[NSUUID alloc] initWithUUIDString:s];
+    } @catch (NSException *e) {
+        return [NSUUID UUID];
+    }
 }
 - (void)setDeviceIDFV:(NSUUID *)u {
-    [[self ud] setObject:u.UUIDString forKey:@"spoofedIDFV"];
+    @try { [[self ud] setObject:u.UUIDString forKey:@"spoofedIDFV"]; } @catch (NSException *e) {}
 }
 
 - (void)applyToContainer:(NSString *)containerID {
