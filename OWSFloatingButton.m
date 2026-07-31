@@ -69,18 +69,32 @@
         _floatingButton.titleLabel.font = [UIFont systemFontOfSize:30];
     }
     
-    // Style the button
-    _floatingButton.backgroundColor = [[UIColor colorWithRed:1.0 green:0.26 blue:0.38 alpha:1.0] colorWithAlphaComponent:0.9]; // Tinder red
+    // Style the button with a Tinder flame gradient
     _floatingButton.tintColor = [UIColor whiteColor];
     _floatingButton.layer.cornerRadius = BUTTON_SIZE / 2;
-    _floatingButton.layer.shadowColor = [UIColor blackColor].CGColor;
-    _floatingButton.layer.shadowOffset = CGSizeMake(0, 2);
-    _floatingButton.layer.shadowOpacity = 0.5;
-    _floatingButton.layer.shadowRadius = 4;
+    _floatingButton.layer.masksToBounds = NO;
     
-    // Add border
-    _floatingButton.layer.borderColor = [UIColor whiteColor].CGColor;
-    _floatingButton.layer.borderWidth = 2;
+    CAGradientLayer *gradient = [CAGradientLayer layer];
+    gradient.frame = CGRectMake(0, 0, BUTTON_SIZE, BUTTON_SIZE);
+    gradient.cornerRadius = BUTTON_SIZE / 2;
+    gradient.colors = @[
+        (id)[UIColor colorWithRed:1.0 green:0.35 blue:0.30 alpha:1.0].CGColor,
+        (id)[UIColor colorWithRed:0.98 green:0.18 blue:0.42 alpha:1.0].CGColor
+    ];
+    gradient.startPoint = CGPointMake(0, 0);
+    gradient.endPoint = CGPointMake(1, 1);
+    [_floatingButton.layer insertSublayer:gradient atIndex:0];
+    
+    // White ring border
+    _floatingButton.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
+    _floatingButton.layer.borderWidth = 2.5;
+    
+    // Depth shadow with flame glow
+    _floatingButton.layer.shadowColor = [UIColor colorWithRed:0.98 green:0.18 blue:0.42 alpha:1.0].CGColor;
+    _floatingButton.layer.shadowOffset = CGSizeMake(0, 3);
+    _floatingButton.layer.shadowOpacity = 0.55;
+    _floatingButton.layer.shadowRadius = 6;
+    _floatingButton.layer.shadowPath = [UIBezierPath bezierPathWithOvalInRect:_floatingButton.bounds].CGPath;
     
     // Add tap action
     [_floatingButton addTarget:self action:@selector(buttonTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -99,9 +113,9 @@
 
 - (void)addPulseAnimation {
     CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-    pulse.duration = 1.5;
+    pulse.duration = 1.6;
     pulse.fromValue = @1.0;
-    pulse.toValue = @1.1;
+    pulse.toValue = @1.06;
     pulse.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
     pulse.autoreverses = YES;
     pulse.repeatCount = INFINITY;
@@ -116,6 +130,24 @@
         UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
         [feedback impactOccurred];
     }
+    
+    // Springy press animation
+    sender.transform = CGAffineTransformMakeScale(0.85, 0.85);
+    [UIView animateWithDuration:0.15
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+        sender.transform = CGAffineTransformMakeScale(1.12, 1.12);
+    } completion:^(BOOL finished) {
+        [UIView animateWithDuration:0.2
+                              delay:0
+                            options:UIViewAnimationOptionCurveEaseInOut
+                         animations:^{
+            sender.transform = CGAffineTransformIdentity;
+        } completion:^(BOOL finished2) {
+            [self addPulseAnimation];
+        }];
+    }];
     
     // Show menu
     [self showContainerMenu];
@@ -247,7 +279,7 @@
     
     // Header
     UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"⚙️ OneWhamScale";
+    titleLabel.text = @"⚙️ BumbleGhost";
     titleLabel.font = [UIFont boldSystemFontOfSize:24];
     titleLabel.textAlignment = NSTextAlignmentCenter;
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -273,8 +305,8 @@
     UIButton *ghostButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [ghostButton setTitle:@"👻 Ghost" forState:UIControlStateNormal];
     ghostButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-    ghostButton.backgroundColor = [UIColor systemGray6Color];
-    [ghostButton setTitleColor:[UIColor systemBlueColor] forState:UIControlStateNormal];
+    ghostButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.95 blue:0.95 alpha:1.0];
+    [ghostButton setTitleColor:[UIColor colorWithRed:0.98 green:0.18 blue:0.42 alpha:1.0] forState:UIControlStateNormal];
     ghostButton.layer.cornerRadius = 10;
     ghostButton.translatesAutoresizingMaskIntoConstraints = NO;
     [ghostButton addTarget:self action:@selector(ghostTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -284,8 +316,8 @@
     UIButton *locButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [locButton setTitle:@"📍 Localisation" forState:UIControlStateNormal];
     locButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-    locButton.backgroundColor = [UIColor systemGray6Color];
-    [locButton setTitleColor:[UIColor systemBlueColor] forState:UIControlStateNormal];
+    locButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.95 blue:0.95 alpha:1.0];
+    [locButton setTitleColor:[UIColor colorWithRed:0.98 green:0.18 blue:0.42 alpha:1.0] forState:UIControlStateNormal];
     locButton.layer.cornerRadius = 10;
     locButton.translatesAutoresizingMaskIntoConstraints = NO;
     [locButton addTarget:self action:@selector(locationTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -295,11 +327,12 @@
     UIButton *addButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [addButton setTitle:@"+ Nouveau conteneur" forState:UIControlStateNormal];
     addButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-    addButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.26 blue:0.38 alpha:1.0];
     [addButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     addButton.layer.cornerRadius = 10;
+    addButton.clipsToBounds = YES;
     addButton.translatesAutoresizingMaskIntoConstraints = NO;
     [addButton addTarget:self action:@selector(addContainerTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [self applyFlameGradient:addButton];
     [_containerView addSubview:addButton];
     
     // Close button
@@ -349,6 +382,22 @@
         [closeButton.heightAnchor constraintEqualToConstant:44],
         [closeButton.bottomAnchor constraintEqualToAnchor:_containerView.bottomAnchor constant:-20]
     ]];
+}
+
+- (void)applyFlameGradient:(UIButton *)button {
+    CAGradientLayer *gradient = [CAGradientLayer layer];
+    gradient.colors = @[
+        (id)[UIColor colorWithRed:1.0 green:0.35 blue:0.30 alpha:1.0].CGColor,
+        (id)[UIColor colorWithRed:0.98 green:0.18 blue:0.42 alpha:1.0].CGColor
+    ];
+    gradient.startPoint = CGPointMake(0, 0);
+    gradient.endPoint = CGPointMake(1, 1);
+    gradient.cornerRadius = 10;
+    button.layer.cornerRadius = 10;
+    button.clipsToBounds = YES;
+    gradient.frame = button.bounds;
+    gradient.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [button.layer insertSublayer:gradient atIndex:0];
 }
 
 - (void)loadContainers {
