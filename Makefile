@@ -5,7 +5,7 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = BumbleGhost
 
-BumbleGhost_FILES = Tweak.x \
+BumbleGhost_FILES = Tweak.m \
 	OWSContainerManager.m \
 	OWSFloatingButton.m \
 	OWSLocationSpoofer.m \
