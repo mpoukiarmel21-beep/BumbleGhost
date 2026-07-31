@@ -16,13 +16,11 @@ static NSString* (*orig_name)(id,SEL);
 static NSString* (*orig_model)(id,SEL);
 static NSString* (*orig_version)(id,SEL);
 static NSUUID* (*orig_idfv)(id,SEL);
-static NSUUID* (*orig_adId)(id,SEL);
 
 static NSString* hook_name(id s,SEL _c){return [[OWSDeviceSpoofer sharedInstance]deviceName]?:orig_name(s,_c);}
 static NSString* hook_model(id s,SEL _c){return [[OWSDeviceSpoofer sharedInstance]deviceModel]?:orig_model(s,_c);}
 static NSString* hook_version(id s,SEL _c){return [[OWSDeviceSpoofer sharedInstance]deviceVersion]?:orig_version(s,_c);}
 static NSUUID* hook_idfv(id s,SEL _c){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return[[OWSDeviceSpoofer sharedInstance]deviceIDFV];return orig_idfv(s,_c);}
-static NSUUID* hook_adId(id s,SEL _c){NSString*c=[[OWSContainerManager sharedManager]currentContainerID];if(c)return[NSUUID UUID];return orig_adId(s,_c);}
 
 // NSUserDefaults
 static id(*o0)(id,SEL,id);static BOOL(*o1)(id,SEL,id);static void(*o2)(id,SEL,id,id);static void(*o3)(id,SEL,BOOL,id);static void(*o4)(id,SEL,id);
@@ -52,10 +50,6 @@ static void init(void) {
     sw(ud,@selector(model),(IMP)hook_model,(IMP*)&orig_model);
     sw(ud,@selector(systemVersion),(IMP)hook_version,(IMP*)&orig_version);
     sw(ud,@selector(identifierForVendor),(IMP)hook_idfv,(IMP*)&orig_idfv);
-
-    SEL adSel = sel_registerName("advertisingIdentifier");
-    Class asm = objc_getClass("ASIdentifierManager");
-    if (asm) sw(asm, adSel, (IMP)hook_adId, (IMP*)&orig_adId);
 
     Class nud=[NSUserDefaults class];
     sw(nud,@selector(objectForKey:),(IMP)h0,(IMP*)&o0);
