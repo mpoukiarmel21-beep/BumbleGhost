@@ -144,6 +144,13 @@
 - (void)startSpoofer {
     _isEnabled = YES;
     
+    NSString *cityOverride = [[NSUserDefaults standardUserDefaults] objectForKey:@"spoofedCity"];
+    if (cityOverride) {
+        [self setFakeLocationForCity:cityOverride];
+        NSLog(@"[OWS] Location spoofer started - %@ (override)", cityOverride);
+        return;
+    }
+    
     // Load location from current container
     OWSContainer *container = [[OWSContainerManager sharedManager] currentContainer];
     if (container) {
@@ -174,6 +181,8 @@
         double lat = [coords[@"lat"] doubleValue];
         double lon = [coords[@"lon"] doubleValue];
         [self setFakeLocation:CLLocationCoordinate2DMake(lat, lon)];
+        [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"spoofedCity"];
+        NSLog(@"[OWS] Fake location set to %@", cityName);
     }
 }
 

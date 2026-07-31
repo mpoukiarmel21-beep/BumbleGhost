@@ -1,11 +1,23 @@
 #import "OWSFloatingButton.h"
 #import "OWSContainerManager.h"
 #import "OWSLocationSpoofer.h"
+#import "OWSDeviceSpoofer.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define BUTTON_SIZE 50.0
 #define MENU_WIDTH 320.0
 #define MENU_HEIGHT 500.0
+
+@interface OWSFloatingWindow : UIWindow
+@end
+
+@implementation OWSFloatingWindow
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    if (hit == self) return nil;
+    return hit;
+}
+@end
 
 @interface OWSFloatingButton ()
 @property (nonatomic, strong) UIWindow *floatingWindow;
@@ -26,11 +38,21 @@
 
 - (void)setupFloatingButton {
     // Create a separate window for the floating button (always on top)
-    _floatingWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    _floatingWindow = [[OWSFloatingWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     _floatingWindow.windowLevel = UIWindowLevelAlert + 100;
     _floatingWindow.backgroundColor = [UIColor clearColor];
     _floatingWindow.userInteractionEnabled = YES;
-    _floatingWindow.hidden = NO;
+    
+    // Attach to the active scene (iOS 13+)
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *s in [UIApplication sharedApplication].connectedScenes) {
+            if (![s isKindOfClass:[UIWindowScene class]]) continue;
+            if (s.activationState == UISceneActivationStateForegroundActive) {
+                _floatingWindow.windowScene = s;
+                break;
+            }
+        }
+    }
     
     // Create the gear button
     _floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -164,7 +186,21 @@
 }
 
 - (UIViewController *)topViewController {
-    UIViewController *topVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+    UIWindow *window = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *s in [UIApplication sharedApplication].connectedScenes) {
+            if (![s isKindOfClass:[UIWindowScene class]]) continue;
+            if (s.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *w in s.windows) {
+                    if (w.isKeyWindow) { window = w; break; }
+                }
+                if (!window && s.windows.count > 0) window = s.windows.firstObject;
+                if (window) break;
+            }
+        }
+    }
+    if (!window) window = [UIApplication sharedApplication].keyWindow;
+    UIViewController *topVC = window.rootViewController;
     while (topVC.presentedViewController) {
         topVC = topVC.presentedViewController;
     }
@@ -233,6 +269,28 @@
     _tableView.translatesAutoresizingMaskIntoConstraints = NO;
     [_containerView addSubview:_tableView];
     
+    // Ghost button
+    UIButton *ghostButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [ghostButton setTitle:@"👻 Ghost" forState:UIControlStateNormal];
+    ghostButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    ghostButton.backgroundColor = [UIColor systemGray6Color];
+    [ghostButton setTitleColor:[UIColor systemBlueColor] forState:UIControlStateNormal];
+    ghostButton.layer.cornerRadius = 10;
+    ghostButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [ghostButton addTarget:self action:@selector(ghostTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [_containerView addSubview:ghostButton];
+    
+    // Location button
+    UIButton *locButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [locButton setTitle:@"📍 Localisation" forState:UIControlStateNormal];
+    locButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    locButton.backgroundColor = [UIColor systemGray6Color];
+    [locButton setTitleColor:[UIColor systemBlueColor] forState:UIControlStateNormal];
+    locButton.layer.cornerRadius = 10;
+    locButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [locButton addTarget:self action:@selector(locationTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [_containerView addSubview:locButton];
+    
     // Add button
     UIButton *addButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [addButton setTitle:@"+ Nouveau conteneur" forState:UIControlStateNormal];
@@ -270,8 +328,17 @@
         [_tableView.topAnchor constraintEqualToAnchor:subtitleLabel.bottomAnchor constant:20],
         [_tableView.leadingAnchor constraintEqualToAnchor:_containerView.leadingAnchor constant:15],
         [_tableView.trailingAnchor constraintEqualToAnchor:_containerView.trailingAnchor constant:-15],
-        [_tableView.bottomAnchor constraintEqualToAnchor:addButton.topAnchor constant:-15],
+        [_tableView.bottomAnchor constraintEqualToAnchor:ghostButton.topAnchor constant:-15],
         
+        [ghostButton.leadingAnchor constraintEqualToAnchor:_containerView.leadingAnchor constant:15],
+        [ghostButton.trailingAnchor constraintEqualToAnchor:locButton.leadingAnchor constant:-10],
+        [ghostButton.widthAnchor constraintEqualToAnchor:locButton.widthAnchor],
+        [ghostButton.heightAnchor constraintEqualToConstant:44],
+        
+        [locButton.trailingAnchor constraintEqualToAnchor:_containerView.trailingAnchor constant:-15],
+        [locButton.heightAnchor constraintEqualToConstant:44],
+        
+        [addButton.topAnchor constraintEqualToAnchor:ghostButton.bottomAnchor constant:10],
         [addButton.leadingAnchor constraintEqualToAnchor:_containerView.leadingAnchor constant:20],
         [addButton.trailingAnchor constraintEqualToAnchor:_containerView.trailingAnchor constant:-20],
         [addButton.heightAnchor constraintEqualToConstant:44],
@@ -419,6 +486,52 @@
             self.onDismiss();
         }
     }];
+}
+
+- (void)ghostTapped:(UIButton *)sender {
+    OWSDeviceSpoofer *spoofer = [OWSDeviceSpoofer sharedInstance];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"👻 Ghost - Modèle iPhone"
+                                                                   message:@"Choisir le modèle simulé pour ce conteneur"
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    for (NSDictionary *d in [spoofer availableDevices]) {
+        NSString *name = d[@"name"];
+        [alert addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            [spoofer setDeviceByName:name];
+            [self showConfirmation:[NSString stringWithFormat:@"Modèle Ghost: %@", name]];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        alert.popoverPresentationController.sourceView = sender;
+    }
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)locationTapped:(UIButton *)sender {
+    OWSLocationSpoofer *spoofer = [OWSLocationSpoofer sharedInstance];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"📍 Fake Localisation"
+                                                                   message:@"Choisir la ville simulée pour ce conteneur"
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    NSArray *cities = [spoofer availableCities];
+    for (NSString *city in cities) {
+        [alert addAction:[UIAlertAction actionWithTitle:city style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            [spoofer setFakeLocationForCity:city];
+            [self showConfirmation:[NSString stringWithFormat:@"Localisation: %@", city]];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        alert.popoverPresentationController.sourceView = sender;
+    }
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)showConfirmation:(NSString *)message {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅ BumbleGhost"
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)backgroundTapped:(UITapGestureRecognizer *)gesture {

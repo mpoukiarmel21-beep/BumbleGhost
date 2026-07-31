@@ -10,6 +10,8 @@
 @property (nonatomic, copy) NSString *deviceVersion;
 @property (nonatomic, copy) NSUUID *deviceIDFV;
 
+- (NSArray<NSDictionary *> *)availableDevices;
+- (void)setDeviceByName:(NSString *)displayName;
 - (void)generateRandomDevice;
 - (void)applyToContainer:(NSString *)containerID;
 

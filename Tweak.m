@@ -88,8 +88,6 @@ static void init(void) {
     [OWSContainerManager sharedManager];
     [OWSDeviceSpoofer sharedInstance];
     [OWSLocationSpoofer sharedInstance];
-
-    // 2. Install hooks
     sw([UIDevice class], @selector(name), (IMP)hook_name, (IMP*)&orig_name);
     sw([UIDevice class], @selector(model), (IMP)hook_model, (IMP*)&orig_model);
     sw([UIDevice class], @selector(systemVersion), (IMP)hook_version, (IMP*)&orig_version);
@@ -110,6 +108,9 @@ static void init(void) {
             fb = [[OWSFloatingButton alloc] init];
             [fb show];
         }
+        // Re-apply current container & city override now that hooks are active
+        [[OWSContainerManager sharedManager] loadContainers];
+        [[OWSLocationSpoofer sharedInstance] startSpoofer];
     });
 
     NSLog(@"[BumbleGhost] v3.0 ready");

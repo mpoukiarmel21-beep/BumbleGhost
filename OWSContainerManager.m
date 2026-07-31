@@ -114,7 +114,7 @@
         NSData *data = [NSData dataWithContentsOfFile:filePath];
         if (data) {
             NSError *error = nil;
-            _mutableContainers = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [OWSContainer class]]] 
+            _mutableContainers = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [OWSContainer class], [NSString class], [NSDate class], [UIColor class]]] 
                                                                       fromData:data 
                                                                          error:&error];
             if (error) {
@@ -268,7 +268,21 @@
 }
 
 - (UIViewController *)topViewController {
-    UIViewController *topVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+    UIWindow *window = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *s in [UIApplication sharedApplication].connectedScenes) {
+            if (![s isKindOfClass:[UIWindowScene class]]) continue;
+            if (s.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *w in s.windows) {
+                    if (w.isKeyWindow) { window = w; break; }
+                }
+                if (!window && s.windows.count > 0) window = s.windows.firstObject;
+                if (window) break;
+            }
+        }
+    }
+    if (!window) window = [UIApplication sharedApplication].keyWindow;
+    UIViewController *topVC = window.rootViewController;
     while (topVC.presentedViewController) {
         topVC = topVC.presentedViewController;
     }
