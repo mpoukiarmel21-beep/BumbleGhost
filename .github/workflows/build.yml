@@ -17,7 +17,9 @@ jobs:
           git clone --recursive https://github.com/theos/theos.git $THEOS
           echo "THEOS=$THEOS" >> $GITHUB_ENV
       - name: Build
-        run: make clean && make package FINALPACKAGE=1
+        run: |
+          make clean
+          make package FINALPACKAGE=1
         env:
           THEOS: ${{ github.workspace }}/theos
       - uses: actions/upload-artifact@v4

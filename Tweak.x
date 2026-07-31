@@ -5,9 +5,10 @@
 #import "OWSContainerManager.h"
 #import "OWSLocationSpoofer.h"
 
-// ── SWIZZLE HELPER ─────────────────────────────────────────────────
-
 static void sw(Class cls, SEL sel, IMP imp, IMP *old) {
+    Method m = class_getInstanceMethod(cls, sel);
+    if (m) { if (old) *old = method_getImplementation(m); method_setImplementation(m, imp); }
+}
 
 static id (*orig_ud_obj)(id,SEL,id);
 static void (*orig_ud_setObj)(id,SEL,id,id);
@@ -41,23 +42,16 @@ static void hook_ud_setBool(id self, SEL _cmd, BOOL val, NSString *key) {
     orig_ud_setBool(self, _cmd, val, key);
 }
 
-// ── UIApplication ──────────────────────────────────────────────────
-
 static BOOL (*orig_didLaunch)(id,SEL,UIApplication*,NSDictionary*);
 static OWSFloatingButton *floatingButton;
 
 static BOOL hook_didLaunch(id self, SEL _cmd, UIApplication *app, NSDictionary *opts) {
     BOOL r = orig_didLaunch(self, _cmd, app, opts);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3*NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        if (!floatingButton) {
-            floatingButton = [[OWSFloatingButton alloc] init];
-            [floatingButton show];
-        }
+        if (!floatingButton) { floatingButton = [[OWSFloatingButton alloc] init]; [floatingButton show]; }
     });
     return r;
 }
-
-// ── CLLocationManager ──────────────────────────────────────────────
 
 static CLLocation* (*orig_location)(id,SEL);
 static void (*orig_startUpdating)(id,SEL);
@@ -98,15 +92,6 @@ static void hook_requestLocation(id self, SEL _cmd) {
     orig_requestLocation(self, _cmd);
 }
 
-// ── SWIZZLE HELPER ─────────────────────────────────────────────────
-
-static void sw(Class cls, SEL sel, IMP imp, IMP *old) {
-    Method m = class_getInstanceMethod(cls, sel);
-    if (m) { if (old) *old = method_getImplementation(m); method_setImplementation(m, imp); }
-}
-
-// ── CONSTRUCTOR ────────────────────────────────────────────────────
-
 __attribute__((constructor))
 static void init(void) {
     Class nud = [NSUserDefaults class];
@@ -115,16 +100,12 @@ static void init(void) {
     sw(nud, @selector(removeObjectForKey:), (IMP)hook_ud_rem, (IMP*)&orig_ud_rem);
     sw(nud, @selector(boolForKey:), (IMP)hook_ud_bool, (IMP*)&orig_ud_bool);
     sw(nud, @selector(setBool:forKey:), (IMP)hook_ud_setBool, (IMP*)&orig_ud_setBool);
-
     sw([UIApplication class], @selector(application:didFinishLaunchingWithOptions:), (IMP)hook_didLaunch, (IMP*)&orig_didLaunch);
-
     Class cl = [CLLocationManager class];
     sw(cl, @selector(location), (IMP)hook_location, (IMP*)&orig_location);
     sw(cl, @selector(startUpdatingLocation), (IMP)hook_startUpdating, (IMP*)&orig_startUpdating);
     sw(cl, @selector(requestLocation), (IMP)hook_requestLocation, (IMP*)&orig_requestLocation);
-
     [[OWSContainerManager sharedManager] loadContainers];
     [[OWSLocationSpoofer sharedInstance] startSpoofer];
-
-    NSLog(@"[BumbleGhost] v1.0 loaded — GPS + Containers + Ghost UI");
+    NSLog(@"[BumbleGhost] v1.0 loaded");
 }
