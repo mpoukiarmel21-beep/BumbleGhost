@@ -248,6 +248,7 @@
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) NSArray<OWSContainer *> *containers;
 @property (nonatomic, strong) OWSContainer *currentContainer;
+@property (nonatomic, strong) UIButton *addButtonView;
 @end
 
 @implementation OWSContainerMenuViewController
@@ -334,6 +335,7 @@
     [addButton addTarget:self action:@selector(addContainerTapped:) forControlEvents:UIControlEventTouchUpInside];
     [self applyFlameGradient:addButton];
     [_containerView addSubview:addButton];
+    _addButtonView = addButton;
     
     // Close button
     UIButton *closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -393,11 +395,20 @@
     gradient.startPoint = CGPointMake(0, 0);
     gradient.endPoint = CGPointMake(1, 1);
     gradient.cornerRadius = 10;
+    gradient.frame = button.bounds;
     button.layer.cornerRadius = 10;
     button.clipsToBounds = YES;
-    gradient.frame = button.bounds;
-    gradient.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [button.layer insertSublayer:gradient atIndex:0];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    for (CALayer *sublayer in _addButtonView.layer.sublayers) {
+        if ([sublayer isKindOfClass:[CAGradientLayer class]]) {
+            sublayer.frame = _addButtonView.bounds;
+            sublayer.cornerRadius = 10;
+        }
+    }
 }
 
 - (void)loadContainers {
