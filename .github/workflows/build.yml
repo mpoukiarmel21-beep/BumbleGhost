@@ -20,11 +20,10 @@ jobs:
         run: |
           make clean
           make
+          find .theos -name "*.dylib" -type f
         env:
           THEOS: ${{ github.workspace }}/theos
       - uses: actions/upload-artifact@v4
         with:
           name: BumbleGhost
-          path: |
-            .theos/obj/**/*.dylib
-            .theos/**/*.dylib
+          path: .theos/obj/debug/BumbleGhost.dylib
