@@ -5,11 +5,7 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = BumbleGhost
 
-BumbleGhost_FILES = Tweak.x \
-	OWSContainerManager.m \
-	OWSFloatingButton.m \
-	OWSLocationSpoofer.m \
-	OWSDeviceSpoofer.m
+BumbleGhost_FILES = Tweak.x
 
 BumbleGhost_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 BumbleGhost_FRAMEWORKS = Foundation UIKit CoreLocation QuartzCore
